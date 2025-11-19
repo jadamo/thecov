@@ -787,6 +787,8 @@ class SurveyGeometry(Geometry, base.FourierBinned):
                                              dk=self.dk,
                                              boxsize=self.boxsize,
                                              max_modes=self.kmodes_sampled,
+                                             binning=self._binning,
+                                             nbins=self._nbins,
                                              k_shell_approx=0.1)
 
         assert len(kmodes) == self.kbins and len(Nmodes) == self.kbins, \
@@ -802,6 +804,10 @@ class SurveyGeometry(Geometry, base.FourierBinned):
             'nmesh': self.nmesh,
             'ikgrid': self.ikgrid,
             'delta_k_max': self.delta_k_max,
+            'kedges': self.kedges,
+            'kfun': self.kfun,
+            'binning': getattr(self, '_binning', 'linear'),
+            'kbins': self.kbins,
         }
 
         def init_worker(*args):
@@ -832,7 +838,8 @@ class SurveyGeometry(Geometry, base.FourierBinned):
                     # self.logger.debug(f'Skipping bin {i} of {self.kbins}.')
                     continue
 
-            init_params['k1_bin_index'] = i + self.kmin//self.dk
+            # use the bin index directly (0..kbins-1) so code works for linear and log binning
+            init_params['k1_bin_index'] = i
             kmodes_sampled = len(km)
 
             # Splitting kmodes in chunks to be sent to each worker
@@ -897,8 +904,11 @@ class SurveyGeometry(Geometry, base.FourierBinned):
 
         k1_bin_index = shared_params['k1_bin_index']
         boxsize = shared_params['boxsize']
-        kfun = 2 * np.pi / boxsize
-        dk = shared_params['dk']
+        # prefer precomputed kfun/edges passed through shared_params
+        kfun = shared_params.get('kfun', 2 * np.pi / boxsize)
+        dk = shared_params.get('dk', None)
+        kedges = shared_params.get('kedges', None)
+        kbins = shared_params.get('kbins', None)
 
         W = shared_w
 
@@ -933,7 +943,20 @@ class SurveyGeometry(Geometry, base.FourierBinned):
             k2r = np.sqrt(k2xh**2 + k2yh**2 + k2zh**2)
 
             # to decide later which shell the k2 mode belongs to
-            k2_bin_index = (k2r * kfun / dk).astype(int)
+            # use explicit bin edges if provided (works with linear and log bins)
+            k2_vals = k2r * kfun
+            if kedges is None:
+                # fallback to old linear behaviour if no edges available
+                if dk is None:
+                    k2_bin_index = np.zeros_like(k2_vals, dtype=int) - 9999
+                else:
+                    k2_bin_index = (k2_vals / dk).astype(int)
+            else:
+                # np.digitize returns indices in 1..len(kedges)-1 for values within edges
+                k2_bin_index = np.digitize(k2_vals, kedges) - 1
+                if kbins is not None:
+                    mask_out = (k2_bin_index < 0) | (k2_bin_index >= kbins)
+                    k2_bin_index[mask_out] = -9999
 
             k2r[k2r <= 1e-10] = np.inf
 

@@ -1,6 +1,7 @@
 import numpy as np
 import thecov.base
 import os
+import thecov.math as math
 
 def test_multipole_covariance_symmetrization():
     cov00, cov22, cov44, cov02, cov04, cov24 = np.random.rand(6, 100, 100)
@@ -110,3 +111,23 @@ def test_multipole_fourier_covariance_save_load_csv():
 
     os.remove('test1.txt')
     os.remove('test2.txt')
+
+def test_log_binning_kbins_kedges_kmid():
+    fb = thecov.base.FourierBinned()
+    kmin, kmax, nbins = 1e-3, 1.0, 5
+    fb.set_kbins(kmin, kmax, nbins=nbins, binning='log')
+    edges = fb.kedges
+    mid = fb.kmid
+    assert fb.kbins == nbins
+    assert len(edges) == nbins + 1
+    assert np.allclose(mid, np.sqrt(edges[:-1] * edges[1:]))
+    assert fb.kavg.shape[0] == nbins
+
+def test_sample_kmodes_log_binning():
+    modes, nm = math.sample_kmodes(1e-3, 1.0, boxsize=100., binning='log', nbins=5, max_modes=10)
+    assert len(modes) == 5
+    assert nm.shape[0] == 5
+    # geometric mean check for kmid consistency:
+    kedges = np.logspace(np.log10(1e-3), np.log10(1.0), 6)
+    kmid = np.sqrt(kedges[:-1] * kedges[1:])
+    assert kmid.shape[0] == 5

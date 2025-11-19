@@ -504,7 +504,7 @@ class FourierBinned:
     def __init__(self) -> None:
         self.kmin, self.kmax, self.dk, self._nmodes = None, None, None, None
 
-    def set_kbins(self, kmin, kmax, dk, nmodes=None):
+    def set_kbins(self, kmin, kmax, dk=None, nbins=None, binning="linear", nmodes=None):
         '''This function defines the k-bins. Only linear binning is supported.
 
         Parameters
@@ -519,12 +519,27 @@ class FourierBinned:
             The number of modes to be used in the calculation. It is an optional parameter.
             If omitted, it is calculated from the volume of spherical shells.
         '''
+        if kmin <= 0 and binning == 'log':
+            raise ValueError("kmin must be > 0 for log binning")
 
-        self.dk = dk
         self.kmax = kmax
         self.kmin = kmin
+        self._binning = binning
 
         self._nmodes = nmodes
+
+        if binning == 'linear':
+            if dk is None:
+                raise ValueError("dk must be provided for linear binning")
+            self.dk = float(dk)
+            self._nbins = int(np.round((self.kmax - self.kmin) / self.dk))
+        elif binning == 'log':
+            if nbins is None:
+                raise ValueError("nbins must be provided for log binning")
+            self._nbins = int(nbins)
+            self.dk = None
+        else:
+            raise ValueError(f"Unknown binning mode: {binning}")
 
     @property
     def is_kbins_set(self):
@@ -534,8 +549,8 @@ class FourierBinned:
         -------
             bool, True if k-bins were defined, False otherwise.
         '''
-        if hasattr(self, 'dk') and hasattr(self, 'kmin') and hasattr(self, 'kmax'):
-            return None not in (self.dk, self.kmin, self.kmax)
+        if hasattr(self, 'kmin') and hasattr(self, 'kmax'):
+            return None not in (self.kmin, self.kmax)
         else:
             return False
 
@@ -562,7 +577,10 @@ class FourierBinned:
             The midpoints of the k-bins.
         '''
 
-        return np.arange(self.kmin + self.dk/2, self.kmax + self.dk/2, self.dk)
+        if self._binning == "linear":
+            return np.arange(self.kmin + self.dk/2, self.kmax + self.dk/2, self.dk)
+        else:
+            return np.sqrt(self.kedges[:-1]*self.kedges[1:])
 
     @property
     def kavg(self):
@@ -588,8 +606,10 @@ class FourierBinned:
         numpy.ndarray
             The edges of the k-bins.
         '''
-
-        return np.arange(self.kmin, self.kmax + self.dk/2, self.dk)
+        if self._binning == "linear":
+            return np.arange(self.kmin, self.kmax + self.dk/2, self.dk)
+        else:
+             return np.geomspace(self.kmin, self.kmax, self._nbins + 1)
 
     @property
     def kfun(self):
@@ -728,9 +748,19 @@ class MultipoleFourierCovariance(MultipoleCovariance, FourierCovariance):
 
         assert np.allclose(k, np.unique(k2)), "k1 and k2 are not consistent"
 
-        dk = np.mean(np.diff(k))
-        kmin = k.min() - dk/2
-        kmax = k.max() + dk/2
+        # check if loaded kbins are log-spaced
+        log_diffs = np.diff(np.log10(k))
+        is_log = np.allclose(log_diffs, log_diffs[0])
+
+        if is_log:
+            dlog = log_diffs[0]
+            edges = np.logspace(np.log10(k[0]) - 0.5*dlog, np.log10(k[-1]) + 0.5*dlog, kbins + 1)
+            self.set_kbins(edges[0], edges[-1], nbins=kbins, binning='log')
+        else:
+            dk = np.mean(np.diff(k))
+            kmin = k.min() - dk/2
+            kmax = k.max() + dk/2
+            self.set_kbins(kmin, kmax, dk=dk, binning='linear')
 
         ells = np.unique(ell1)
         assert np.allclose(ells, np.unique(ell2)), "ell1 and ell2 are not consistent"
@@ -739,8 +769,6 @@ class MultipoleFourierCovariance(MultipoleCovariance, FourierCovariance):
         ells_one_way   = len(value) == (len(ells)**2 + len(ells))/2 * kbins**2
 
         assert ells_one_way or ells_both_ways, 'length of covariance file doesn\'nt match'
-
-        self.set_kbins(kmin, kmax, dk)
 
         assert np.allclose(np.unique(k1), self.kmid), "k bins are not linearly spaced"
 
@@ -764,7 +792,7 @@ class MultipoleFourierCovariance(MultipoleCovariance, FourierCovariance):
     def set_ell_cov(self, l1, l2, cov, cls=FourierCovariance):
         cov = super().set_ell_cov(l1, l2, cov, cls=cls)
         if not cov.is_kbins_set:
-            cov.set_kbins(self.kmin, self.kmax, self.dk, self._nmodes)
+            cov.set_kbins(self.kmin, self.kmax, self.dk, nbins=self._nbins, binning=self._binning, nmodes=self._nmodes)
         return cov
     
     def get_ell_cov(self, l1, l2, force_return=False, cls=FourierCovariance):
@@ -784,11 +812,21 @@ class MultipoleFourierCovariance(MultipoleCovariance, FourierCovariance):
 
         return self
     
-    def set_kbins(self, kmin, kmax, dk, nmodes=None):
-        size = (kmax - kmin)/dk
-        size = (np.round(size) if np.allclose(np.round(size), size) else size).astype(int)
+    def set_kbins(self, kmin, kmax, dk=None, nbins=None, binning="linear", nmodes=None):
+        if binning == 'linear':
+            if dk is None:
+                raise ValueError("dk required for linear binning")
+            size = (kmax - kmin) / dk
+            size = int(np.round(size) if np.allclose(np.round(size), size) else size)
+        elif binning == 'log':
+            if nbins is None:
+                raise ValueError("nbins required for log binning")
+            size = int(nbins)
+        else:
+            raise ValueError(f"Unknown binning: {binning}")
+
         self._mshape = (size, size)
-        return super().set_kbins(kmin, kmax, dk, nmodes)
+        return super().set_kbins(kmin, kmax, dk=dk, nbins=nbins, binning=binning, nmodes=nmodes)
 
 
 class PowerSpectrumMultipolesCovariance(MultipoleFourierCovariance):
