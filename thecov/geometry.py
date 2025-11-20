@@ -784,11 +784,11 @@ class SurveyGeometry(Geometry, base.FourierBinned):
         # HYBRID SAMPLING
         kmodes, Nmodes =  math.sample_kmodes(kmin=self.kmin,
                                              kmax=self.kmax,
-                                             dk=self.dk,
+                                             dk=getattr(self, "dk", None),
                                              boxsize=self.boxsize,
                                              max_modes=self.kmodes_sampled,
-                                             binning=self._binning,
-                                             nbins=self._nbins,
+                                             binning=getattr(self, "_binning", "linear"),
+                                             nbins=getattr(self, "_nbins", None),
                                              k_shell_approx=0.1)
 
         assert len(kmodes) == self.kbins and len(Nmodes) == self.kbins, \

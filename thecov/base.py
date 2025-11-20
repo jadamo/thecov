@@ -502,7 +502,7 @@ class FourierBinned:
     '''
 
     def __init__(self) -> None:
-        self.kmin, self.kmax, self.dk, self._nmodes = None, None, None, None
+        self.kmin, self.kmax, self.dk, self._nbins, self._binning, self._nmodes = None, None, None, None, "linear", None
 
     def set_kbins(self, kmin, kmax, dk=None, nbins=None, binning="linear", nmodes=None):
         '''This function defines the k-bins. Only linear binning is supported.

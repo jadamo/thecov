@@ -398,7 +398,7 @@ class RegularTrispectrumCovariance(base.PowerSpectrumMultipolesCovariance):
         from powercovfft import PowerSpecCovFFT
         self.calculator = PowerSpecCovFFT()
 
-    def set_kbins(self, kmin, kmax, dk, binning="linear", nbims=None, ells=(0, 2, 4)):
+    def set_kbins(self, kmin, kmax, dk, binning="linear", nbins=None, ells=(0, 2, 4)):
         '''Set the k-binning for the covariance matrix.
 
         Parameters

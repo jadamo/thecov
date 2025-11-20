@@ -125,6 +125,8 @@ def sample_kmodes(kmin, kmax, dk=None, boxsize=None, max_modes=1000,
     import logging
     logger = logging.getLogger('SampleModes')
 
+    logger.info(f"Sampling kmodes using {binning} binning...")
+
     # Build edges according to binning
     if binning == 'linear':
         if dk is None:
