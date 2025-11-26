@@ -398,7 +398,7 @@ class RegularTrispectrumCovariance(base.PowerSpectrumMultipolesCovariance):
         from powercovfft import PowerSpecCovFFT
         self.calculator = PowerSpecCovFFT()
 
-    def set_kbins(self, kmin, kmax, dk, binning="linear", nbins=None, ells=(0, 2, 4)):
+    def set_kbins(self, kmin, kmax, dk=None, binning="linear", nbins=None, ells=(0, 2, 4)):
         '''Set the k-binning for the covariance matrix.
 
         Parameters
@@ -585,7 +585,7 @@ class SuperSampleCovariance(base.PowerSpectrumMultipolesCovariance):
             self, geometry=geometry)
         self.logger = logging.getLogger('SuperSampleCovariance')
 
-    def set_kbins(self, kmin, kmax, dk, binning="linear", nbims=None, ells=(0, 2, 4)):
+    def set_kbins(self, kmin, kmax, dk=None, binning="linear", nbins=None, ells=(0, 2, 4)):
         '''Set the k-binning for the covariance matrix.
 
         Parameters
@@ -599,7 +599,7 @@ class SuperSampleCovariance(base.PowerSpectrumMultipolesCovariance):
         '''
 
         self._ells = ells
-        base.PowerSpectrumMultipolesCovariance.set_kbins(self, kmin, kmax, dk, binning=binning, nbins=nbims)
+        base.PowerSpectrumMultipolesCovariance.set_kbins(self, kmin, kmax, dk, binning=binning, nbins=nbins)
 
         return self
 
